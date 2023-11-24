@@ -17,6 +17,7 @@ const isExcludedUrl = (url: string, patterns: RegExp[]): boolean => {
 interface InitSettings {
   url: string;
   siteId: string;
+  tagManagerId?: string;
   jsTrackerFile?: string;
   phpTrackerFile?: string;
   excludeUrlsPatterns?: RegExp[];
@@ -69,11 +70,42 @@ const trustedPolicyHooks: TrustedTypePolicyOptions = {
   createScriptURL: (s) => s,
 };
 
+const createScript = (
+  url: string,
+  nonce: string | undefined,
+  tagManagerId?: string | undefined
+): void => {
+  const matomoFile = "matomo.js";
+  const matomoCDNUrl = "https://cdn.matomo.cloud";
+  const sanitizer =
+    window.trustedTypes?.createPolicy("matomo-next", trustedPolicyHooks) ??
+    trustedPolicyHooks;
+
+  const scriptElement: HTMLTrustedScriptElement =
+    document.createElement("script");
+  const refElement = document.getElementsByTagName("script")[0];
+  if (nonce) {
+    scriptElement.setAttribute("nonce", nonce);
+  }
+  scriptElement.type = "text/javascript";
+  scriptElement.async = true;
+  scriptElement.defer = true;
+
+  const fullUrl = !tagManagerId
+    ? `${url}/${matomoFile}`
+    : `${matomoCDNUrl}/${url.split("//")[1]}/${tagManagerId}.js`;
+
+  scriptElement.src = sanitizer.createScriptURL?.(fullUrl) ?? fullUrl;
+  if (refElement.parentNode) {
+    refElement.parentNode.insertBefore(scriptElement, refElement);
+  }
+};
+
 // initialize the tracker
 export function init({
   url,
   siteId,
-  jsTrackerFile = "matomo.js",
+  tagManagerId,
   phpTrackerFile = "matomo.php",
   excludeUrlsPatterns = [],
   disableCookies = false,
@@ -81,17 +113,16 @@ export function init({
   onRouteChangeComplete = undefined,
   onInitialization = undefined,
   nonce,
-  trustedPolicyName = "matomo-next",
 }: InitSettings): void {
+  if (tagManagerId) {
+    window._mtm = window._mtm !== null ? window._mtm : [];
+  }
+
   window._paq = window._paq !== null ? window._paq : [];
   if (!url) {
     console.warn("Matomo disabled, please provide matomo url");
     return;
   }
-
-  const sanitizer =
-    window.trustedTypes?.createPolicy(trustedPolicyName, trustedPolicyHooks) ??
-    trustedPolicyHooks;
 
   let previousPath = "";
   // order is important -_- so campaign are detected
@@ -124,19 +155,10 @@ export function init({
    * we rely on Router.pathname
    */
 
-  const scriptElement: HTMLTrustedScriptElement =
-    document.createElement("script");
-  const refElement = document.getElementsByTagName("script")[0];
-  if (nonce) {
-    scriptElement.setAttribute("nonce", nonce);
-  }
-  scriptElement.type = "text/javascript";
-  scriptElement.async = true;
-  scriptElement.defer = true;
-  const fullUrl = `${url}/${jsTrackerFile}`;
-  scriptElement.src = sanitizer.createScriptURL?.(fullUrl) ?? fullUrl;
-  if (refElement.parentNode) {
-    refElement.parentNode.insertBefore(scriptElement, refElement);
+  createScript(url, nonce);
+
+  if (tagManagerId) {
+    createScript(url, nonce, tagManagerId);
   }
   previousPath = location.pathname;
 
@@ -175,6 +197,16 @@ export function init({
         push(["trackPageView"]);
       }
     }, 0);
+
+    if (tagManagerId) {
+      if (!window._mtm) {
+        window._mtm = [];
+      }
+      window._mtm.push({
+        "mtm.startTime": new Date().getTime(),
+        event: "mtm.Start",
+      });
+    }
 
     if (onRouteChangeComplete) onRouteChangeComplete(path);
   };
