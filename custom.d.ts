@@ -15,6 +15,7 @@ interface Dimensions {
 }
 
 interface Window {
+  _mtm?: (null | undefined | { "mtm.startTime": number; event: string })[];
   _paq?:
     | (
         | Dimensions
