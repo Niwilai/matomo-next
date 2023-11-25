@@ -159,6 +159,15 @@ export function init({
 
   if (tagManagerId) {
     createScript(url, nonce, tagManagerId);
+
+    if (!window._mtm) {
+      window._mtm = [];
+    }
+
+    window._mtm.push({
+      "mtm.startTime": new Date().getTime(),
+      event: "mtm.Start",
+    });
   }
   previousPath = location.pathname;
 
@@ -199,13 +208,6 @@ export function init({
     }, 0);
 
     if (tagManagerId) {
-      if (!window._mtm) {
-        window._mtm = [];
-      }
-      window._mtm.push({
-        "mtm.startTime": new Date().getTime(),
-        event: "mtm.Start",
-      });
     }
 
     if (onRouteChangeComplete) onRouteChangeComplete(path);
